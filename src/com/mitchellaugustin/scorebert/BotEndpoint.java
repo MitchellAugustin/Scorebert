@@ -32,7 +32,7 @@ public class BotEndpoint {
 	
 	//Specify your bot token as an argument.
 	public static void main(String[] args){
-		if(!args[0].isEmpty()){
+		if(args.length == 1){
 			@SuppressWarnings("unused")
 			BotEndpoint endpoint = new BotEndpoint(args[0]);
 		}
@@ -187,10 +187,9 @@ public class BotEndpoint {
                         	List<List<String>> scores;
 							try {
 								scores = SaveFile.dropTableAsListMatrix(ScoreController.FILENAME, "s" + message.getChannelReceiver().getServer().getId(), "POINTS", "USER_ID");
-								
 								//Sorts each user in the order of their earned points. Stores an array of the indices.
 								int[] sortedIndices = IntStream.range(0, scores.get(0).size())
-						                .boxed().sorted((i, j) -> scores.get(0).get(i).compareTo(scores.get(0).get(j)) )
+						                .boxed().sorted((i, j) -> ((Integer.parseInt(scores.get(0).get(i)) > Integer.parseInt(scores.get(0).get(j))) ? +1 : (Integer.parseInt(scores.get(0).get(i)) < Integer.parseInt(scores.get(0).get(j))) ? -1 : 0))
 						                .mapToInt(ele -> ele).toArray(); 
 								
 								String response = "Scoreboard:\n";
