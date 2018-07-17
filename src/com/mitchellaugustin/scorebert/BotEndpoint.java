@@ -198,7 +198,14 @@ public class BotEndpoint {
 								for(int i = scores.get(0).size() - 1; i >= 0; i--){
 									String memberID = scores.get(1).get(sortedIndices[i]);
 									Log.info("MemberID: " + memberID);
-									response += "#" + currentNum + ": " + message.getChannelReceiver().getServer().getMemberById(memberID).getName() + " (" + scores.get(0).get(sortedIndices[i]) + " points)\n";
+									String username = "[Removed user]";
+									try{
+										username = message.getChannelReceiver().getServer().getMemberById(memberID).getName();
+									}
+									catch(Exception e){
+										Log.error("Error finding username for ID " + memberID + ". User was probably removed from server.");
+									}
+									response += "#" + currentNum + ": " + username + " (" + scores.get(0).get(sortedIndices[i]) + " points)\n";
 									currentNum++;
 								}
 								message.reply(response);
