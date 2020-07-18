@@ -2,6 +2,8 @@ package com.mitchellaugustin.scorebert;
 
 import java.awt.Color;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -44,6 +46,7 @@ public class BotEndpoint {
 	}
 
     public BotEndpoint(String token) {
+		ArrayList<LiveCall> activeCalls = new ArrayList<>();
     	new DiscordApiBuilder().setToken(token).login().thenAccept(api -> {
     		api.updateActivity("!help");
     		api.addMessageCreateListener(event -> {
@@ -256,6 +259,26 @@ public class BotEndpoint {
                 	.send(message.getChannel());
                 }
     		});
+    		api.addServerVoiceChannelMemberJoinListener(event -> {
+    			activeCalls.add(new LiveCall(event.getServer().getId(), event.getUser().getId(), Instant.now().getEpochSecond(), event.getServer().getAfkChannel().get().equals(event.getChannel())));
+			});
+    		api.addServerVoiceChannelMemberLeaveListener(event -> {
+    			LiveCall thisCall = null;
+				long endTime = Instant.now().getEpochSecond();
+    			for (LiveCall call : activeCalls) {
+    				if (call.getServerID() == event.getServer().getId() && call.getUserID() == event.getUser().getId()) {
+    					thisCall = call;
+    					activeCalls.remove(thisCall);
+    					break;
+					}
+				}
+
+    			if (thisCall != null) {
+    				long timeInCall = endTime - thisCall.getStartTime();
+    				Log.info(event.getUser().getName() + " completed a call - time: " + timeInCall + (thisCall.isAfkChannel() ? " (AFK)" : ""));
+    				//TODO Save call time / log data to database.
+				}
+			});
     	});	
     }
 
