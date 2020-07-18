@@ -189,4 +189,34 @@ public class SaveFile {
 	    
 	    return result;
 	}
+
+	/**
+	 * Drops a table as a 2d List
+	 * @param filename - The database file
+	 * @throws ClassNotFoundException
+	 * @throws SQLException
+	 */
+	public static ArrayList<LiveCall> dropTableAsCallList(String filename, long serverID, String[] columns) throws ClassNotFoundException, SQLException{
+		ArrayList<LiveCall> result = new ArrayList<>();
+		Class.forName("org.sqlite.JDBC");
+		Connection conn = DriverManager.getConnection("jdbc:sqlite:" + filename);
+
+		Statement queryStatement = conn.createStatement();
+
+		ResultSet rs = queryStatement.executeQuery("select * from " + "s" + serverID + ";");
+		while (rs.next()) {
+			String currentColumn1 = rs.getString(columns[0]);
+			String currentColumn2 = rs.getString(columns[1]);
+			String currentColumn3 = rs.getString(columns[2]);
+			String currentColumn4 = rs.getString(columns[3]);
+			String currentColumn5 = rs.getString(columns[4]);
+
+			result.add(new LiveCall(serverID, Long.parseLong(currentColumn1), Long.parseLong(currentColumn2), Boolean.parseBoolean(currentColumn5), Long.parseLong(currentColumn3)));
+			//Log.info("Match found! " + currentColumn2);
+		}
+		rs.close();
+		conn.close();
+
+		return result;
+	}
 }

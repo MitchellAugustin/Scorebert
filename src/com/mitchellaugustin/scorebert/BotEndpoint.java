@@ -237,6 +237,16 @@ public class BotEndpoint {
                 	
                 }
 
+                else if (message.getContent().startsWith("!mystats")) {
+					try {
+						message.getChannel().sendMessage("Your total call time is: " + VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getUserAuthor().get().getId()));
+					} catch (SQLException throwables) {
+						throwables.printStackTrace();
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+				}
+
                 //Sends a TTS message (or multiple successive TTS messages) with the specified content
                 else if(message.getContent().startsWith("!tts")){
                 	String msg = message.getContent().replace("!tts ", "");
@@ -276,7 +286,15 @@ public class BotEndpoint {
     			if (thisCall != null) {
     				long timeInCall = endTime - thisCall.getStartTime();
     				Log.info(event.getUser().getName() + " completed a call - time: " + timeInCall + (thisCall.isAfkChannel() ? " (AFK)" : ""));
+    				thisCall.setEndTime(endTime);
     				//TODO Save call time / log data to database.
+					try {
+						VoiceDataController.recordCall(thisCall);
+					} catch (SQLException throwables) {
+						throwables.printStackTrace();
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
 				}
 			});
     	});	
