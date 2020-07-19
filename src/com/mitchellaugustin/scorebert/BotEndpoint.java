@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import org.javacord.api.DiscordApiBuilder;
@@ -236,10 +237,88 @@ public class BotEndpoint {
 					}
                 	
                 }
-
                 else if (message.getContent().startsWith("!mystats")) {
+                	String liveCall = "";
+					for (LiveCall call : activeCalls) {
+						if (call.getServerID() == message.getServer().get().getId() && call.getUserID() == message.getAuthor().getId()) {
+							long totalCallTime = Instant.now().getEpochSecond() - call.getStartTime();
+							long hours = TimeUnit.SECONDS.toHours(totalCallTime);
+							long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
+							long seconds = totalCallTime - (minutes * 60);
+							liveCall = "Currently in a call for " + String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
+						}
+					}
+					if (liveCall.isEmpty()) {
+						liveCall = "Not currently in a call";
+					}
 					try {
-						message.getChannel().sendMessage("Your total call time is: " + VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getUserAuthor().get().getId()));
+						new MessageBuilder().setEmbed(new EmbedBuilder()
+								.setTitle("User statistics for " + message.getAuthor().getDisplayName())
+								.setDescription(
+										"Score: " +
+												ScoreController.getCurrentUserScore("" + message.getUserAuthor().get().getId(), "" + message.getServer().get().getId()) + "\n" +
+										"Spendable Points: " +
+												ScoreController.getRemainingPoints("" + message.getUserAuthor().get().getId(), "" + message.getServer().get().getId()) + "\n" +
+										"Call time this month: " +
+												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
+										"Call time this year: " +
+												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
+										"Total call time: " +
+												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
+										"AFK time this month: " +
+												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
+										"AFK time this year: " +
+												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
+										"Total AFK time: " +
+												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
+										liveCall)
+								.setColor(Color.GREEN)).send(message.getChannel());
+					} catch (SQLException throwables) {
+						throwables.printStackTrace();
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+				}
+
+				else if (message.getContent().startsWith("!stats")) {
+					if (message.getMentionedUsers().isEmpty()) {
+						new MessageBuilder().setContent("Please specify a user!").send(message.getChannel());
+					}
+					String liveCall = "";
+					for (LiveCall call : activeCalls) {
+						if (call.getServerID() == message.getServer().get().getId() && call.getUserID() == message.getMentionedUsers().get(0).getId()) {
+							long totalCallTime = Instant.now().getEpochSecond() - call.getStartTime();
+							long hours = TimeUnit.SECONDS.toHours(totalCallTime);
+							long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
+							long seconds = totalCallTime - (minutes * 60);
+							liveCall = "Currently in a call for " + String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
+						}
+					}
+					if (liveCall.isEmpty()) {
+						liveCall = "Not currently in a call";
+					}
+					try {
+						new MessageBuilder().setEmbed(new EmbedBuilder()
+								.setTitle("User statistics for " + message.getMentionedUsers().get(0).getDisplayName(message.getServer().get()))
+								.setDescription(
+										"Score: " +
+												ScoreController.getCurrentUserScore("" + message.getMentionedUsers().get(0).getId(), "" + message.getServer().get().getId()) + "\n" +
+												"Spendable Points: " +
+												ScoreController.getRemainingPoints("" + message.getMentionedUsers().get(0).getId(), "" + message.getServer().get().getId()) + "\n" +
+												"Call time this month: " +
+												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
+												"Call time this year: " +
+												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
+												"Total call time: " +
+												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
+												"AFK time this month: " +
+												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
+												"AFK time this year: " +
+												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
+												"Total AFK time: " +
+												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
+												liveCall)
+								.setColor(Color.GREEN)).send(message.getChannel());
 					} catch (SQLException throwables) {
 						throwables.printStackTrace();
 					} catch (ClassNotFoundException e) {

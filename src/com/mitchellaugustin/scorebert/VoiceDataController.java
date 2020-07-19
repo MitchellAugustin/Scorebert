@@ -24,20 +24,20 @@ public class VoiceDataController {
         return SaveFile.dropTableAsCallList(FILENAME, serverID, columnNames);
     }
 
-    protected static long getTotalUserCallTime(long serverID, long userID) throws SQLException, ClassNotFoundException {
+    protected static long getTotalUserCallTime(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
         long totalCallTime = 0;
         for (LiveCall curCall : getAllCalls(serverID)) {
-            if (curCall.getUserID() == userID && !curCall.isAfkChannel()) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel())) {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }
         return totalCallTime;
     }
 
-    protected static String callTimeThisYear(long serverID, long userID) throws SQLException, ClassNotFoundException {
+    protected static String callTimeTotal(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
         long totalCallTime = 0;
         for (LiveCall curCall : getAllCalls(serverID)) {
-            if (curCall.getUserID() == userID && !curCall.isAfkChannel() && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getYear() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getYear()) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel())) {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }
@@ -48,10 +48,24 @@ public class VoiceDataController {
         return String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
     }
 
-    protected static String callTimeThisMonth(long serverID, long userID) throws SQLException, ClassNotFoundException {
+    protected static String callTimeThisYear(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
         long totalCallTime = 0;
         for (LiveCall curCall : getAllCalls(serverID)) {
-            if (curCall.getUserID() == userID && !curCall.isAfkChannel() && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getMonth().equals(Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getMonth())) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getYear() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getYear()) {
+                totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
+            }
+        }
+        long hours = TimeUnit.SECONDS.toHours(totalCallTime);
+        long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
+        long seconds = totalCallTime - (minutes * 60);
+
+        return String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
+    }
+
+    protected static String callTimeThisMonth(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
+        long totalCallTime = 0;
+        for (LiveCall curCall : getAllCalls(serverID)) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getMonth().equals(Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getMonth())) {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }
