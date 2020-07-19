@@ -344,7 +344,8 @@ public class BotEndpoint {
                 else if(message.getContent().toString().startsWith("!help")){
                 	new MessageBuilder().setEmbed(new EmbedBuilder()
                 			.setTitle("ScoreBert Help")
-                			.setDescription("`!award @user: Gives the mentioned user 1 point\n!mypoints: Shows your points and remaining spendable points\n!rate [emoji]: Finds the message with the most of the specified emoji reactions within the last 10,000 messages (Only works with custom emojis)\n!rateall [emoji]: Same as above, but rates every message in the chat (takes significantly longer)\n!scoreboard: Shows the complete scoreboard\n!slimyboys: yum!\n!tts [message]: Reads your message through the TTS engine. Same as /tts, but can be used for messages that are too long for the Discord command.`"))
+                			.setDescription("!award @user: Gives the mentioned user 1 point\n!mypoints: Shows your points and remaining spendable points\n!rate [emoji]: Finds the message with the most of the specified emoji reactions within the last 10,000 messages (Only works with custom emojis)\n!rateall [emoji]: Same as above, but rates every message in the chat (takes significantly longer)\n!scoreboard: Shows the complete scoreboard\n!mystats: Shows your statistic breakdown\n!stats @user: Shows the specified user's statistic breakdown\n!slimyboys: yum!\n!tts [message]: Reads your message through the TTS engine. Same as /tts, but can be used for messages that are too long for the Discord command.")
+							.setColor(Color.GREEN))
                 	.send(message.getChannel());
                 }
     		});
