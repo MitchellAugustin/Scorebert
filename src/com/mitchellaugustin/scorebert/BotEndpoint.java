@@ -242,10 +242,7 @@ public class BotEndpoint {
 					for (LiveCall call : activeCalls) {
 						if (call.getServerID() == message.getServer().get().getId() && call.getUserID() == message.getAuthor().getId()) {
 							long totalCallTime = Instant.now().getEpochSecond() - call.getStartTime();
-							long hours = TimeUnit.SECONDS.toHours(totalCallTime);
-							long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
-							long seconds = totalCallTime - (minutes * 60);
-							liveCall = "Currently in a call for " + String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
+							liveCall = "Currently in a call for " + VoiceDataController.toHMS(totalCallTime);
 						}
 					}
 					if (liveCall.isEmpty()) {
@@ -288,10 +285,7 @@ public class BotEndpoint {
 					for (LiveCall call : activeCalls) {
 						if (call.getServerID() == message.getServer().get().getId() && call.getUserID() == message.getMentionedUsers().get(0).getId()) {
 							long totalCallTime = Instant.now().getEpochSecond() - call.getStartTime();
-							long hours = TimeUnit.SECONDS.toHours(totalCallTime);
-							long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
-							long seconds = totalCallTime - (minutes * 60);
-							liveCall = "Currently in a call for " + String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
+							liveCall = "Currently in a call for " + VoiceDataController.toHMS(totalCallTime);
 						}
 					}
 					if (liveCall.isEmpty()) {

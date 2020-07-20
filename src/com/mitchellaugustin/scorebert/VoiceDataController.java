@@ -41,11 +41,8 @@ public class VoiceDataController {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }
-        long hours = TimeUnit.SECONDS.toHours(totalCallTime);
-        long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
-        long seconds = totalCallTime - (minutes * 60);
 
-        return String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
+        return toHMS(totalCallTime);
     }
 
     protected static String callTimeThisYear(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
@@ -55,11 +52,8 @@ public class VoiceDataController {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }
-        long hours = TimeUnit.SECONDS.toHours(totalCallTime);
-        long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
-        long seconds = totalCallTime - (minutes * 60);
 
-        return String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
+        return toHMS(totalCallTime);
     }
 
     protected static String callTimeThisMonth(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
@@ -69,9 +63,14 @@ public class VoiceDataController {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }
+
+        return toHMS(totalCallTime);
+    }
+
+    protected static String toHMS(long totalCallTime) {
         long hours = TimeUnit.SECONDS.toHours(totalCallTime);
         long minutes = TimeUnit.SECONDS.toMinutes(totalCallTime) - (hours * 60);
-        long seconds = totalCallTime - (minutes * 60);
+        long seconds = totalCallTime % 60;
 
         return String.format("%d hours, %d minutes, %d seconds", hours, minutes, seconds);
     }
