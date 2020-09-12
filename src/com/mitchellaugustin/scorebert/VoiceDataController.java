@@ -59,7 +59,18 @@ public class VoiceDataController {
     protected static String callTimeThisMonth(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
         long totalCallTime = 0;
         for (LiveCall curCall : getAllCalls(serverID)) {
-            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getMonth().equals(Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getMonth())) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getYear() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getYear() && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getMonth().equals(Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getMonth())) {
+                totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
+            }
+        }
+
+        return toHMS(totalCallTime);
+    }
+
+    protected static String callTimePastDay(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
+        long totalCallTime = 0;
+        for (LiveCall curCall : getAllCalls(serverID)) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getYear() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getYear() && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getMonth().equals(Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getMonth()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth()) {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }

@@ -256,12 +256,16 @@ public class BotEndpoint {
 												ScoreController.getCurrentUserScore("" + message.getUserAuthor().get().getId(), "" + message.getServer().get().getId()) + "\n" +
 										"Spendable Points: " +
 												ScoreController.getRemainingPoints("" + message.getUserAuthor().get().getId(), "" + message.getServer().get().getId()) + "\n" +
+										"Call time in the past 24 hours: " +
+												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
 										"Call time this month: " +
 												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
 										"Call time this year: " +
 												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
 										"Total call time: " +
 												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
+										"AFK time in the past 24 hours: " +
+												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
 										"AFK time this month: " +
 												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
 										"AFK time this year: " +
@@ -299,12 +303,16 @@ public class BotEndpoint {
 												ScoreController.getCurrentUserScore("" + message.getMentionedUsers().get(0).getId(), "" + message.getServer().get().getId()) + "\n" +
 												"Spendable Points: " +
 												ScoreController.getRemainingPoints("" + message.getMentionedUsers().get(0).getId(), "" + message.getServer().get().getId()) + "\n" +
+												"Call time in the past 24 hours: " +
+												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
 												"Call time this month: " +
 												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
 												"Call time this year: " +
 												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
 												"Total call time: " +
 												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
+												"AFK time in the past 24 hours: " +
+												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
 												"AFK time this month: " +
 												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
 												"AFK time this year: " +
