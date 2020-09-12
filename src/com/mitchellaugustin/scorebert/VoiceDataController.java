@@ -3,6 +3,8 @@ package com.mitchellaugustin.scorebert;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +72,12 @@ public class VoiceDataController {
     protected static String callTimePastDay(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
         long totalCallTime = 0;
         for (LiveCall curCall : getAllCalls(serverID)) {
-            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getYear() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getYear() && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getMonth().equals(Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getMonth()) && Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth()) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) &&
+                    Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getYear() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getYear() &&
+                    Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getMonth().equals(Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getMonth()) &&
+
+                    ((Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth() == Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth())
+                            || (Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth() == Instant.now().minus(24, ChronoUnit.HOURS).atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth() && (Instant.ofEpochSecond(curCall.getStartTime()).atZone(ZoneId.systemDefault()).toLocalTime().getHour() >= Instant.now().minus(24, ChronoUnit.HOURS).atZone(ZoneId.systemDefault()).toLocalTime().getHour())))) {
                 totalCallTime += (curCall.getEndTime() - curCall.getStartTime());
             }
         }
