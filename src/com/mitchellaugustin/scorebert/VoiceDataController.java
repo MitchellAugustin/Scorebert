@@ -3,6 +3,9 @@ package com.mitchellaugustin.scorebert;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
@@ -83,6 +86,17 @@ public class VoiceDataController {
         }
 
         return toHMS(totalCallTime);
+    }
+
+    protected static String lastCallTime(long serverID, long userID, boolean afk) throws SQLException, ClassNotFoundException {
+        long lastCallTime = 0;
+        for (LiveCall curCall : getAllCalls(serverID)) {
+            if (curCall.getUserID() == userID && (afk == curCall.isAfkChannel()) && curCall.getEndTime() > lastCallTime) {
+                lastCallTime = curCall.getEndTime();
+            }
+        }
+        DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm a");
+        return Instant.ofEpochSecond(lastCallTime).atZone(ZoneId.systemDefault()).toOffsetDateTime().format(FORMATTER);
     }
 
     protected static String toHMS(long totalCallTime) {

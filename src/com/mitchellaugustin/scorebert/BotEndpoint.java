@@ -246,7 +246,13 @@ public class BotEndpoint {
 						}
 					}
 					if (liveCall.isEmpty()) {
-						liveCall = "Not currently in a call";
+						try {
+							liveCall = "Not currently in a call. (Last in a call on " + VoiceDataController.lastCallTime(message.getServer().get().getId(), message.getAuthor().getId(), false) + ")";
+						} catch (SQLException throwables) {
+							throwables.printStackTrace();
+						} catch (ClassNotFoundException e) {
+							e.printStackTrace();
+						}
 					}
 					try {
 						new MessageBuilder().setEmbed(new EmbedBuilder()
@@ -293,7 +299,13 @@ public class BotEndpoint {
 						}
 					}
 					if (liveCall.isEmpty()) {
-						liveCall = "Not currently in a call";
+						try {
+							liveCall = "Not currently in a call. (Last in a call on " + VoiceDataController.lastCallTime(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + ")";
+						} catch (SQLException throwables) {
+							throwables.printStackTrace();
+						} catch (ClassNotFoundException e) {
+							e.printStackTrace();
+						}
 					}
 					try {
 						new MessageBuilder().setEmbed(new EmbedBuilder()
