@@ -95,8 +95,12 @@ public class VoiceDataController {
                 lastCallTime = curCall.getEndTime();
             }
         }
+        if (lastCallTime == 0) {
+            return "(No call time recorded)";
+        }
+
         DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm a");
-        return Instant.ofEpochSecond(lastCallTime).atZone(ZoneId.systemDefault()).toOffsetDateTime().format(FORMATTER);
+        return "(Last in a call on " + Instant.ofEpochSecond(lastCallTime).atZone(ZoneId.systemDefault()).toOffsetDateTime().format(FORMATTER) + ")";
     }
 
     protected static String toHMS(long totalCallTime) {
