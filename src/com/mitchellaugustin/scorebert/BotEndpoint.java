@@ -59,6 +59,11 @@ public class BotEndpoint {
 						String[] columnNames = {"USER_ID", "POINTS", "REMAINING_POINTS"};
 						SaveFile.putData(ScoreController.FILENAME, "s" + message.getServer().get().getId(), columns, columnNames);
 					}
+					if(!SaveFile.doesTableExist(VoiceDataController.FILENAME, "s" + message.getServer().get().getId())){
+						String[] columns = {"364186658960048139", "" + Instant.now().getEpochSecond(), "" + Instant.now().getEpochSecond(), "0", "TRUE"};
+						String[] columnNames = {"USER_ID", "CALL_START", "CALL_END", "CALL_TIME", "IS_AFK"};
+						SaveFile.putData(VoiceDataController.FILENAME, "s" + message.getServer().get().getId(), columns, columnNames);
+					}
 				} catch (ClassNotFoundException | SQLException e1) {
 					e1.printStackTrace();
 					String[] columns = {"" + message.getAuthor().getId(), "0", "10"};
@@ -67,6 +72,16 @@ public class BotEndpoint {
 						SaveFile.putData(ScoreController.FILENAME, "s" + message.getServer().get().getId(), columns, columnNames);
 					} catch (ClassNotFoundException | SQLException e) {
 						e.printStackTrace();
+					}
+
+					String[] vColumns = {"364186658960048139", "" + Instant.now().getEpochSecond(), "" + Instant.now().getEpochSecond(), "0", "TRUE"};
+					String[] vColumnNames = {"USER_ID", "CALL_START", "CALL_END", "CALL_TIME", "IS_AFK"};
+					try {
+						SaveFile.putData(VoiceDataController.FILENAME, "s" + message.getServer().get().getId(), vColumns, vColumnNames);
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					} catch (SQLException throwables) {
+						throwables.printStackTrace();
 					}
 				}
             	
@@ -364,7 +379,7 @@ public class BotEndpoint {
                 }
     		});
     		api.addServerVoiceChannelMemberJoinListener(event -> {
-    			activeCalls.add(new LiveCall(event.getServer().getId(), event.getUser().getId(), Instant.now().getEpochSecond(), event.getServer().getAfkChannel().get().equals(event.getChannel())));
+    			activeCalls.add(new LiveCall(event.getServer().getId(), event.getUser().getId(), Instant.now().getEpochSecond(), event.getServer().getAfkChannel().isPresent() && event.getServer().getAfkChannel().get().equals(event.getChannel())));
 			});
     		api.addServerVoiceChannelMemberLeaveListener(event -> {
     			LiveCall thisCall = null;
