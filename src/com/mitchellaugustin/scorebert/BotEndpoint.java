@@ -3,16 +3,16 @@ package com.mitchellaugustin.scorebert;
 import java.awt.Color;
 import java.sql.SQLException;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import org.javacord.api.DiscordApiBuilder;
 import org.javacord.api.entity.emoji.CustomEmoji;
+import org.javacord.api.entity.intent.Intent;
 import org.javacord.api.entity.message.Message;
 import org.javacord.api.entity.message.MessageBuilder;
 import org.javacord.api.entity.message.MessageSet;
@@ -48,7 +48,7 @@ public class BotEndpoint {
 
     public BotEndpoint(String token) {
 		ArrayList<LiveCall> activeCalls = new ArrayList<>();
-    	new DiscordApiBuilder().setToken(token).login().thenAccept(api -> {
+    	new DiscordApiBuilder().setAllIntents().setToken(token).login().thenAccept(api -> {
     		api.updateActivity("!help");
     		api.addMessageCreateListener(event -> {
     			Message message = event.getMessage();
@@ -224,7 +224,7 @@ public class BotEndpoint {
 						scores = SaveFile.dropTableAsListMatrix(ScoreController.FILENAME, "s" + message.getServer().get().getId(), "POINTS", "USER_ID");
 						//Sorts each user in the order of their earned points. Stores an array of the indices.
 						int[] sortedIndices = IntStream.range(0, scores.get(0).size())
-				                .boxed().sorted((i, j) -> ((Integer.parseInt(scores.get(0).get(i)) > Integer.parseInt(scores.get(0).get(j))) ? +1 : (Integer.parseInt(scores.get(0).get(i)) < Integer.parseInt(scores.get(0).get(j))) ? -1 : 0))
+				                .boxed().sorted(Comparator.comparingInt(i -> Integer.parseInt(scores.get(0).get(i))))
 				                .mapToInt(ele -> ele).toArray(); 
 						
 						String response = "";
@@ -234,12 +234,8 @@ public class BotEndpoint {
 							String memberID = scores.get(1).get(sortedIndices[i]);
 							Log.info("MemberID: " + memberID);
 							String username = "[Removed user]";
-							try{
-								username = message.getServer().get().getMemberById(memberID).get().getName();
-							}
-							catch(Exception e){
-								Log.error("Error finding username for ID " + memberID + ". User was probably removed from server.");
-							}
+							Optional<User> user = message.getServer().get().getMemberById(memberID);
+							username = user.isPresent() ? user.get().getName() : username;
 							response += "#" + currentNum + ": " + username + " (" + scores.get(0).get(sortedIndices[i]) + " points)\n";
 							currentNum++;
 						}
@@ -252,6 +248,58 @@ public class BotEndpoint {
 					}
                 	
                 }
+				//Displays the current ranking of all users in the server based on voice activity.
+				else if(message.getContent().toString().startsWith("!vscoreboard")){
+					ArrayList<ArrayList<Long>> callList;
+					HashMap<Long, Long> callTime = new HashMap<>();
+					String title = "Call Time Scoreboard";
+					try {
+						for (LiveCall call : VoiceDataController.getAllCalls(message.getServer().get().getId())) {
+							if (message.getContent().toString().startsWith("!vscoreboard afk") && call.isAfkChannel()) {
+								title = "AFK Time Scoreboard";
+								callTime.put(call.getUserID(), callTime.getOrDefault(call.getUserID(), 0l) + (call.getEndTime() - call.getStartTime()));
+							}
+							else if (!message.getContent().toString().startsWith("!vscoreboard afk") && !call.isAfkChannel()){
+								callTime.put(call.getUserID(), callTime.getOrDefault(call.getUserID(), 0l) + (call.getEndTime() - call.getStartTime()));
+							}
+							else if (message.getContent().toString().startsWith("!vscoreboard total")){
+								title = "Call Time Scoreboard (Active + AFK Channels)";
+								callTime.put(call.getUserID(), callTime.getOrDefault(call.getUserID(), 0l) + (call.getEndTime() - call.getStartTime()));
+							}
+						}
+						callList = new ArrayList<>();
+						callList.add(new ArrayList<>());
+						callList.add(new ArrayList<>());
+						for (Map.Entry<Long, Long> entry : callTime.entrySet()) {
+							callList.get(0).add(entry.getValue());
+							callList.get(1).add(entry.getKey());
+						}
+						//Sorts each user in the order of their call time in seconds. Stores an array of the indices.
+						long[] sortedIndices = LongStream.range(0, callList.get(0).size())
+								.boxed().sorted(Comparator.comparingLong(i -> callList.get(0).get(Math.toIntExact(i))))
+								.mapToLong(ele -> ele).toArray();
+
+						String response = "";
+						int currentNum = 1;
+						Log.info("ScoresAfter: " + callList);
+						for(int i = callList.get(0).size() - 1; i >= 0; i--){
+							String memberID = "" + callList.get(1).get(Math.toIntExact(sortedIndices[i]));
+							Log.info("MemberID: " + memberID);
+							String username = "[Removed user]";
+							Optional<User> user = message.getServer().get().getMemberById(memberID);
+							username = user.isPresent() ? user.get().getName() : username;
+							response += "#" + currentNum + ": " + username + " (" + VoiceDataController.toHMS(callList.get(0).get(Math.toIntExact(sortedIndices[i]))) + ")\n";
+							currentNum++;
+						}
+						new MessageBuilder().setEmbed(new EmbedBuilder()
+								.setTitle(title)
+								.setDescription(response)
+								.setColor(Color.GREEN)).send(message.getChannel());
+					} catch (ClassNotFoundException | SQLException e) {
+						e.printStackTrace();
+					}
+
+				}
                 else if (message.getContent().startsWith("!mystats")) {
                 	String liveCall = "";
 					for (LiveCall call : activeCalls) {
@@ -373,7 +421,7 @@ public class BotEndpoint {
                 else if(message.getContent().toString().startsWith("!help")){
                 	new MessageBuilder().setEmbed(new EmbedBuilder()
                 			.setTitle("ScoreBert Help")
-                			.setDescription("!award @user: Gives the mentioned user 1 point\n!mypoints: Shows your points and remaining spendable points\n!rate [emoji]: Finds the message with the most of the specified emoji reactions within the last 10,000 messages (Only works with custom emojis)\n!rateall [emoji]: Same as above, but rates every message in the chat (takes significantly longer)\n!scoreboard: Shows the complete scoreboard\n!mystats: Shows your statistic breakdown\n!stats @user: Shows the specified user's statistic breakdown\n!slimyboys: yum!\n!tts [message]: Reads your message through the TTS engine. Same as /tts, but can be used for messages that are too long for the Discord command.")
+                			.setDescription("!award @user: Gives the mentioned user 1 point\n!mypoints: Shows your points and remaining spendable points\n!rate [emoji]: Finds the message with the most of the specified emoji reactions within the last 10,000 messages (Only works with custom emojis)\n!rateall [emoji]: Same as above, but rates every message in the chat (takes significantly longer)\n!scoreboard: Shows the complete scoreboard for user-awarded points\n!vscoreboard [afk|total]: Ranks users based on tracked voice channel time\n!mystats: Shows your statistic breakdown\n!stats @user: Shows the specified user's statistic breakdown\n!slimyboys: yum!\n!tts [message]: Reads your message through the TTS engine. Same as /tts, but can be used for messages that are too long for the Discord command.")
 							.setColor(Color.GREEN))
                 	.send(message.getChannel());
                 }
@@ -406,7 +454,7 @@ public class BotEndpoint {
 					}
 				}
 			});
-    	});	
+    	});
     }
 
 }
