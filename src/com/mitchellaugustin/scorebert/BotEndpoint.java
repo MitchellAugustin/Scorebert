@@ -102,9 +102,7 @@ public class BotEndpoint extends ListenerAdapter {
 		}
 
 		// Handle commands
-		if (content.startsWith("!rateall")) {
-			handleRateAll(message);
-		} else if (content.startsWith("!slimyboys")) {
+		if (content.startsWith("!slimyboys")) {
 			message.getChannel().sendMessage("https://cdn.discordapp.com/attachments/167788706101460992/340737175303880714/slimyboys.jpg").queue();
 		} else if (content.startsWith("!rate")) {
 			handleRate(message);
@@ -120,47 +118,9 @@ public class BotEndpoint extends ListenerAdapter {
 			handleMyStats(message);
 		} else if (content.startsWith("!stats")) {
 			handleStats(message);
-		} else if (content.startsWith("!tts")) {
-			handleTTS(message);
 		} else if (content.startsWith("!help")) {
 			handleHelp(message);
 		}
-	}
-
-	private void handleRateAll(Message message) {
-		List<CustomEmoji> emojis = message.getMentions().getCustomEmojis();
-		if (emojis.isEmpty()) {
-			message.getChannel().sendMessage("No emojis were specified as search parameters").queue();
-			return;
-		}
-		
-		CustomEmoji emoji = emojis.get(0);
-		message.getChannel().sendMessage("I am now searching for the message with the most " + emoji.getAsMention() + ". This may take a while...").queue();
-		
-		message.getChannel().getHistory().retrievePast(1000000).queue(history -> {
-			String highestMessage = "";
-			String highestAuthor = "";
-			int highestCount = 0;
-			
-			for (Message msg : history) {
-				for (MessageReaction reaction : msg.getReactions()) {
-					if (reaction.getEmoji().equals(emoji)) {
-						int count = reaction.getCount();
-						if (count > highestCount) {
-							highestCount = count;
-							highestMessage = msg.getContentRaw();
-							highestAuthor = msg.getAuthor().getName();
-						}
-					}
-				}
-			}
-			
-			if (highestCount > 0) {
-				message.getChannel().sendMessage("> " + highestMessage + "\n-" + highestAuthor + "\n" + highestCount + " " + emoji.getAsMention() + "\n").queue();
-			} else {
-				message.getChannel().sendMessage("No " + emoji.getAsMention() + " reactions were found within the last 1,000,000 messages.").queue();
-			}
-		});
 	}
 
 	private void handleRate(Message message) {
@@ -171,9 +131,9 @@ public class BotEndpoint extends ListenerAdapter {
 		}
 		
 		CustomEmoji emoji = emojis.get(0);
-		message.getChannel().sendMessage("I am now searching for the message with the most " + emoji.getAsMention() + ". This may take a while...").queue();
+		message.getChannel().sendMessage("I am now searching for the message with the most " + emoji.getAsMention() + " in the last 100 messages. This may take a while...").queue();
 		
-		message.getChannel().getHistory().retrievePast(10000).queue(history -> {
+		message.getChannel().getHistory().retrievePast(100).queue(history -> {
 			String highestMessage = "";
 			String highestAuthor = "";
 			int highestCount = 0;
@@ -194,7 +154,7 @@ public class BotEndpoint extends ListenerAdapter {
 			if (highestCount > 0) {
 				message.getChannel().sendMessage("> " + highestMessage + "\n-" + highestAuthor + "\n" + highestCount + " " + emoji.getAsMention() + "\n").queue();
 			} else {
-				message.getChannel().sendMessage("No " + emoji.getAsMention() + " reactions were found within the last 10,000 messages. (Try using !rateall)").queue();
+				message.getChannel().sendMessage("No " + emoji.getAsMention() + " reactions were found within the last 100 messages. (Try using !rateall)").queue();
 			}
 		});
 	}
@@ -353,33 +313,16 @@ public class BotEndpoint extends ListenerAdapter {
 		}
 	}
 
-	private void handleTTS(Message message) {
-		if (!message.getGuild().getSelfMember().getVoiceState().inAudioChannel()) {
-			message.getChannel().sendMessage("I need to be in a voice channel to use TTS!").queue();
-			return;
-		}
-		
-		String content = message.getContentRaw().substring(4).trim();
-		if (content.isEmpty()) {
-			message.getChannel().sendMessage("Please provide a message to speak!").queue();
-			return;
-		}
-		
-		message.getChannel().sendMessage("🔊 " + content).setTTS(true).queue();
-	}
-
 	private void handleHelp(Message message) {
 		String helpText = "**ScoreBert Help**\n"
 			+ "`!award @user` - Gives the mentioned user 1 point\n"
 			+ "`!mypoints` - Shows your points and remaining spendable points\n"
-			+ "`!rate [emoji]` - Finds the message with the most of the specified emoji reactions within the last 10,000 messages (Only works with custom emojis)\n"
-			+ "`!rateall [emoji]` - Same as above, but rates every message in the chat (takes significantly longer)\n"
+			+ "`!rate [emoji]` - Finds the message with the most of the specified emoji reactions within the last 100 messages (Only works with custom emojis)\n"
 			+ "`!scoreboard` - Shows the complete scoreboard for user-awarded points\n"
 			+ "`!vscoreboard [afk|total]` - Ranks users based on tracked voice channel time\n"
 			+ "`!mystats` - Shows your statistic breakdown\n"
 			+ "`!stats @user` - Shows the specified user's statistic breakdown\n"
-			+ "`!slimyboys` - yum!\n"
-			+ "`!tts [message]` - Reads your message through the TTS engine. Same as /tts, but can be used for messages that are too long for the Discord command.";
+			+ "`!slimyboys` - yum!";
 		message.getChannel().sendMessage(helpText).queue();
 	}
 
