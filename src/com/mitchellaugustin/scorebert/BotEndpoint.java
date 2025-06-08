@@ -10,15 +10,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import org.javacord.api.DiscordApiBuilder;
-import org.javacord.api.entity.emoji.CustomEmoji;
-import org.javacord.api.entity.intent.Intent;
-import org.javacord.api.entity.message.Message;
-import org.javacord.api.entity.message.MessageBuilder;
-import org.javacord.api.entity.message.MessageSet;
-import org.javacord.api.entity.message.Reaction;
-import org.javacord.api.entity.message.embed.EmbedBuilder;
-import org.javacord.api.entity.user.User;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.emoji.CustomEmoji;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.requests.GatewayIntent;
+import net.dv8tion.jda.api.utils.ChunkingFilter;
+import net.dv8tion.jda.api.utils.MemberCachePolicy;
+import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 /**
  * ScoreBert - A scoreboard for your Discord server.
@@ -31,430 +35,410 @@ import org.javacord.api.entity.user.User;
  * This program was written by Mitchell Augustin and is licensed under the Apache License version 2.0
  * https://www.apache.org/licenses/LICENSE-2.0.html
  */
-public class BotEndpoint {
-	
-	//Specify your bot token as an argument.
-	public static void main(String[] args){
-		if(args.length == 1){
-			@SuppressWarnings("unused")
-			BotEndpoint endpoint = new BotEndpoint(args[0]);
-		}
-		else{
+public class BotEndpoint extends ListenerAdapter {
+	private final ArrayList<LiveCall> activeCalls = new ArrayList<>();
+	private JDA jda;
+
+	public static void main(String[] args) {
+		if (args.length == 1) {
+			new BotEndpoint(args[0]);
+		} else {
 			Log.error("Please specify a Discord bot token an argument. For example:");
 			Log.error("java -jar ScoreBert.jar [token]");
 			System.exit(1);
 		}
 	}
 
-    public BotEndpoint(String token) {
-		ArrayList<LiveCall> activeCalls = new ArrayList<>();
-    	new DiscordApiBuilder().setAllIntents().setToken(token).login().thenAccept(api -> {
-    		api.updateActivity("!help");
-    		api.addMessageCreateListener(event -> {
-    			Message message = event.getMessage();
-    			//Check to make sure that the database has a table for this server.
-            	try {
-					if(!SaveFile.doesTableExist(ScoreController.FILENAME, "s" + message.getServer().get().getId())){
-						String[] columns = {"" + "" + message.getAuthor().getId(), "0", "10"};
-						String[] columnNames = {"USER_ID", "POINTS", "REMAINING_POINTS"};
-						SaveFile.putData(ScoreController.FILENAME, "s" + message.getServer().get().getId(), columns, columnNames);
+	public BotEndpoint(String token) {
+		jda = JDABuilder.createDefault(token)
+			.enableIntents(GatewayIntent.GUILD_MEMBERS, GatewayIntent.GUILD_MESSAGES, GatewayIntent.MESSAGE_CONTENT)
+			.setMemberCachePolicy(MemberCachePolicy.ALL)
+			.setChunkingFilter(ChunkingFilter.ALL)
+			.addEventListeners(this)
+			.build();
+	}
+
+	@Override
+	public void onReady(ReadyEvent event) {
+		event.getJDA().getPresence().setActivity(net.dv8tion.jda.api.entities.Activity.playing("!help"));
+	}
+
+	@Override
+	public void onMessageReceived(MessageReceivedEvent event) {
+		if (event.getAuthor().isBot()) return;
+		
+		Message message = event.getMessage();
+		String content = message.getContentRaw();
+		
+		// Check to make sure that the database has a table for this server
+		try {
+			if (!SaveFile.doesTableExist(ScoreController.FILENAME, "s" + event.getGuild().getId())) {
+				String[] columns = {"" + message.getAuthor().getId(), "0", "10"};
+				String[] columnNames = {"USER_ID", "POINTS", "REMAINING_POINTS"};
+				SaveFile.putData(ScoreController.FILENAME, "s" + event.getGuild().getId(), columns, columnNames);
+			}
+			if (!SaveFile.doesTableExist(VoiceDataController.FILENAME, "s" + event.getGuild().getId())) {
+				String[] columns = {"364186658960048139", "" + Instant.now().getEpochSecond(), "" + Instant.now().getEpochSecond(), "0", "TRUE"};
+				String[] columnNames = {"USER_ID", "CALL_START", "CALL_END", "CALL_TIME", "IS_AFK"};
+				SaveFile.putData(VoiceDataController.FILENAME, "s" + event.getGuild().getId(), columns, columnNames);
+			}
+		} catch (ClassNotFoundException | SQLException e1) {
+			e1.printStackTrace();
+			String[] columns = {"" + message.getAuthor().getId(), "0", "10"};
+			String[] columnNames = {"USER_ID", "POINTS", "REMAINING_POINTS"};
+			try {
+				SaveFile.putData(ScoreController.FILENAME, "s" + event.getGuild().getId(), columns, columnNames);
+			} catch (ClassNotFoundException | SQLException e) {
+				e.printStackTrace();
+			}
+
+			String[] vColumns = {"364186658960048139", "" + Instant.now().getEpochSecond(), "" + Instant.now().getEpochSecond(), "0", "TRUE"};
+			String[] vColumnNames = {"USER_ID", "CALL_START", "CALL_END", "CALL_TIME", "IS_AFK"};
+			try {
+				SaveFile.putData(VoiceDataController.FILENAME, "s" + event.getGuild().getId(), vColumns, vColumnNames);
+			} catch (ClassNotFoundException | SQLException e) {
+				e.printStackTrace();
+			}
+		}
+
+		// Handle commands
+		if (content.startsWith("!rateall")) {
+			handleRateAll(message);
+		} else if (content.startsWith("!slimyboys")) {
+			message.getChannel().sendMessage("https://cdn.discordapp.com/attachments/167788706101460992/340737175303880714/slimyboys.jpg").queue();
+		} else if (content.startsWith("!rate")) {
+			handleRate(message);
+		} else if (content.startsWith("!award")) {
+			handleAward(message);
+		} else if (content.startsWith("!mypoints")) {
+			handleMyPoints(message);
+		} else if (content.startsWith("!scoreboard")) {
+			handleScoreboard(message);
+		} else if (content.startsWith("!vscoreboard")) {
+			handleVScoreboard(message);
+		} else if (content.startsWith("!mystats")) {
+			handleMyStats(message);
+		} else if (content.startsWith("!stats")) {
+			handleStats(message);
+		} else if (content.startsWith("!tts")) {
+			handleTTS(message);
+		} else if (content.startsWith("!help")) {
+			handleHelp(message);
+		}
+	}
+
+	private void handleRateAll(Message message) {
+		List<CustomEmoji> emojis = message.getMentions().getCustomEmojis();
+		if (emojis.isEmpty()) {
+			message.getChannel().sendMessage("No emojis were specified as search parameters").queue();
+			return;
+		}
+		
+		CustomEmoji emoji = emojis.get(0);
+		message.getChannel().sendMessage("I am now searching for the message with the most " + emoji.getAsMention() + ". This may take a while...").queue();
+		
+		message.getChannel().getHistory().retrievePast(1000000).queue(history -> {
+			String highestMessage = "";
+			String highestAuthor = "";
+			int highestCount = 0;
+			
+			for (Message msg : history) {
+				for (MessageReaction reaction : msg.getReactions()) {
+					if (reaction.getEmoji().equals(emoji)) {
+						int count = reaction.getCount();
+						if (count > highestCount) {
+							highestCount = count;
+							highestMessage = msg.getContentRaw();
+							highestAuthor = msg.getAuthor().getName();
+						}
 					}
-					if(!SaveFile.doesTableExist(VoiceDataController.FILENAME, "s" + message.getServer().get().getId())){
-						String[] columns = {"364186658960048139", "" + Instant.now().getEpochSecond(), "" + Instant.now().getEpochSecond(), "0", "TRUE"};
-						String[] columnNames = {"USER_ID", "CALL_START", "CALL_END", "CALL_TIME", "IS_AFK"};
-						SaveFile.putData(VoiceDataController.FILENAME, "s" + message.getServer().get().getId(), columns, columnNames);
+				}
+			}
+			
+			if (highestCount > 0) {
+				message.getChannel().sendMessage("> " + highestMessage + "\n-" + highestAuthor + "\n" + highestCount + " " + emoji.getAsMention() + "\n").queue();
+			} else {
+				message.getChannel().sendMessage("No " + emoji.getAsMention() + " reactions were found within the last 1,000,000 messages.").queue();
+			}
+		});
+	}
+
+	private void handleRate(Message message) {
+		List<CustomEmoji> emojis = message.getMentions().getCustomEmojis();
+		if (emojis.isEmpty()) {
+			message.getChannel().sendMessage("No emojis were specified as search parameters").queue();
+			return;
+		}
+		
+		CustomEmoji emoji = emojis.get(0);
+		message.getChannel().sendMessage("I am now searching for the message with the most " + emoji.getAsMention() + ". This may take a while...").queue();
+		
+		message.getChannel().getHistory().retrievePast(10000).queue(history -> {
+			String highestMessage = "";
+			String highestAuthor = "";
+			int highestCount = 0;
+			
+			for (Message msg : history) {
+				for (MessageReaction reaction : msg.getReactions()) {
+					if (reaction.getEmoji().equals(emoji)) {
+						int count = reaction.getCount();
+						if (count > highestCount) {
+							highestCount = count;
+							highestMessage = msg.getContentRaw();
+							highestAuthor = msg.getAuthor().getName();
+						}
 					}
-				} catch (ClassNotFoundException | SQLException e1) {
-					e1.printStackTrace();
-					String[] columns = {"" + message.getAuthor().getId(), "0", "10"};
-					String[] columnNames = {"USER_ID", "POINTS", "REMAINING_POINTS"};
+				}
+			}
+			
+			if (highestCount > 0) {
+				message.getChannel().sendMessage("> " + highestMessage + "\n-" + highestAuthor + "\n" + highestCount + " " + emoji.getAsMention() + "\n").queue();
+			} else {
+				message.getChannel().sendMessage("No " + emoji.getAsMention() + " reactions were found within the last 10,000 messages. (Try using !rateall)").queue();
+			}
+		});
+	}
+
+	private void handleAward(Message message) {
+		List<Member> mentions = message.getMentions().getMembers();
+		for (Member member : mentions) {
+			try {
+				if (!message.getAuthor().getId().equals(member.getId())) {
+					message.getChannel().sendMessage(ScoreController.awardPoint(
+						message.getAuthor().getId(),
+						member.getId(),
+						message.getGuild().getId()
+					)).queue();
+				} else {
+					message.getChannel().sendMessage("You can't award yourself a point!").queue();
+				}
+			} catch (ClassNotFoundException | SQLException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	private void handleMyPoints(Message message) {
+		try {
+			message.getChannel().sendMessage("<@" + message.getAuthor().getId() + ">, you have " +
+				ScoreController.getCurrentUserScore(message.getAuthor().getId(), message.getGuild().getId()) +
+				" points and " +
+				ScoreController.getRemainingPoints(message.getAuthor().getId(), message.getGuild().getId()) +
+				" points left to award to others.").queue();
+		} catch (ClassNotFoundException | SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void handleScoreboard(Message message) {
+		try {
+			List<List<String>> scores = SaveFile.dropTableAsListMatrix(
+				ScoreController.FILENAME,
+				"s" + message.getGuild().getId(),
+				"POINTS",
+				"USER_ID"
+			);
+			
+			int[] sortedIndices = IntStream.range(0, scores.get(0).size())
+				.boxed()
+				.sorted(Comparator.comparingInt(i -> Integer.parseInt(scores.get(0).get(i))))
+				.mapToInt(ele -> ele)
+				.toArray();
+			
+			StringBuilder response = new StringBuilder();
+			int currentNum = 1;
+			
+			for (int i = scores.get(0).size() - 1; i >= 0; i--) {
+				String memberId = scores.get(1).get(sortedIndices[i]);
+				Member member = message.getGuild().getMemberById(memberId);
+				String username = member != null ? member.getEffectiveName() : "[Removed user]";
+				response.append("#").append(currentNum).append(": ")
+					.append(username).append(" (")
+					.append(scores.get(0).get(sortedIndices[i]))
+					.append(" points)\n");
+				currentNum++;
+			}
+			
+			message.getChannel().sendMessageEmbeds(
+				new net.dv8tion.jda.api.EmbedBuilder()
+					.setTitle("Scoreboard")
+					.setDescription(response.toString())
+					.setColor(Color.GREEN)
+					.build()
+			).queue();
+		} catch (ClassNotFoundException | SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void handleVScoreboard(Message message) {
+		String[] args = message.getContentRaw().split(" ");
+		boolean afk = args.length > 1 && args[1].equalsIgnoreCase("afk");
+		
+		try {
+			List<LiveCall> calls = VoiceDataController.getAllCalls(message.getGuild().getIdLong());
+			Map<String, Long> userTimes = new HashMap<>();
+			
+			for (LiveCall call : calls) {
+				if (call.isAfkChannel() == afk && call.getEndTime() != 0) {
+					String userId = String.valueOf(call.getUserID());
+					userTimes.merge(userId, call.getEndTime() - call.getStartTime(), Long::sum);
+				}
+			}
+			
+			if (userTimes.isEmpty()) {
+				message.getChannel().sendMessage("No " + (afk ? "AFK" : "active") + " voice time recorded yet!").queue();
+				return;
+			}
+			
+			List<Map.Entry<String, Long>> sortedTimes = new ArrayList<>(userTimes.entrySet());
+			sortedTimes.sort(Map.Entry.<String, Long>comparingByValue().reversed());
+			
+			StringBuilder response = new StringBuilder();
+			int currentNum = 1;
+			
+			for (Map.Entry<String, Long> entry : sortedTimes) {
+				Member member = message.getGuild().getMemberById(entry.getKey());
+				String username = member != null ? member.getEffectiveName() : "[Removed user]";
+				response.append("#").append(currentNum).append(": ")
+					.append(username).append(" (")
+					.append(VoiceDataController.toHMS(entry.getValue()))
+					.append(")\n");
+				currentNum++;
+			}
+			
+			message.getChannel().sendMessageEmbeds(
+				new net.dv8tion.jda.api.EmbedBuilder()
+					.setTitle("Voice Scoreboard (" + (afk ? "AFK" : "TOTAL") + ")")
+					.setDescription(response.toString())
+					.setColor(Color.BLUE)
+					.build()
+			).queue();
+		} catch (ClassNotFoundException | SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void handleMyStats(Message message) {
+		handleStats(message);
+	}
+
+	private void handleStats(Message message) {
+		String[] args = message.getContentRaw().split(" ");
+		Member targetMember = message.getMember();
+		
+		if (args.length > 1 && !args[0].equals("!mystats")) {
+			List<Member> mentions = message.getMentions().getMembers();
+			if (!mentions.isEmpty()) {
+				targetMember = mentions.get(0);
+			}
+		}
+		
+		try {
+			String points = ScoreController.getCurrentUserScore(targetMember.getId(), message.getGuild().getId());
+			String remaining = ScoreController.getRemainingPoints(targetMember.getId(), message.getGuild().getId());
+			String activeTime = VoiceDataController.callTimeTotal(message.getGuild().getIdLong(), targetMember.getIdLong(), false);
+			String afkTime = VoiceDataController.callTimeTotal(message.getGuild().getIdLong(), targetMember.getIdLong(), true);
+			
+			message.getChannel().sendMessageEmbeds(
+				new net.dv8tion.jda.api.EmbedBuilder()
+					.setTitle("Stats for " + targetMember.getEffectiveName())
+					.addField("Points", "Total: " + points + "\nRemaining: " + remaining, true)
+					.addField("Voice Time", "Active: " + activeTime + "\nAFK: " + afkTime, true)
+					.setColor(Color.YELLOW)
+					.build()
+			).queue();
+		} catch (ClassNotFoundException | SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void handleTTS(Message message) {
+		if (!message.getGuild().getSelfMember().getVoiceState().inAudioChannel()) {
+			message.getChannel().sendMessage("I need to be in a voice channel to use TTS!").queue();
+			return;
+		}
+		
+		String content = message.getContentRaw().substring(4).trim();
+		if (content.isEmpty()) {
+			message.getChannel().sendMessage("Please provide a message to speak!").queue();
+			return;
+		}
+		
+		message.getChannel().sendMessage("🔊 " + content).setTTS(true).queue();
+	}
+
+	private void handleHelp(Message message) {
+		String helpText = "**ScoreBert Help**\n"
+			+ "`!award @user` - Gives the mentioned user 1 point\n"
+			+ "`!mypoints` - Shows your points and remaining spendable points\n"
+			+ "`!rate [emoji]` - Finds the message with the most of the specified emoji reactions within the last 10,000 messages (Only works with custom emojis)\n"
+			+ "`!rateall [emoji]` - Same as above, but rates every message in the chat (takes significantly longer)\n"
+			+ "`!scoreboard` - Shows the complete scoreboard for user-awarded points\n"
+			+ "`!vscoreboard [afk|total]` - Ranks users based on tracked voice channel time\n"
+			+ "`!mystats` - Shows your statistic breakdown\n"
+			+ "`!stats @user` - Shows the specified user's statistic breakdown\n"
+			+ "`!slimyboys` - yum!\n"
+			+ "`!tts [message]` - Reads your message through the TTS engine. Same as /tts, but can be used for messages that are too long for the Discord command.";
+		message.getChannel().sendMessage(helpText).queue();
+	}
+
+	@Override
+	public void onGuildVoiceUpdate(GuildVoiceUpdateEvent event) {
+		// User joined a voice channel
+		if (event.getChannelJoined() != null && event.getChannelLeft() == null) {
+			boolean isAfk = event.getChannelJoined().getName().toLowerCase().equals("afk");
+			LiveCall call = new LiveCall(
+				event.getGuild().getIdLong(),
+				event.getMember().getIdLong(),
+				Instant.now().getEpochSecond(),
+				isAfk
+			);
+			activeCalls.add(call);
+		}
+		// User left a voice channel
+		else if (event.getChannelLeft() != null && event.getChannelJoined() == null) {
+			for (LiveCall call : activeCalls) {
+				if (call.getUserID() == event.getMember().getIdLong() &&
+					call.getServerID() == event.getGuild().getIdLong() &&
+					call.getEndTime() == 0) {
+					call.setEndTime(Instant.now().getEpochSecond());
 					try {
-						SaveFile.putData(ScoreController.FILENAME, "s" + message.getServer().get().getId(), columns, columnNames);
+						VoiceDataController.recordCall(call);
 					} catch (ClassNotFoundException | SQLException e) {
 						e.printStackTrace();
 					}
-
-					String[] vColumns = {"364186658960048139", "" + Instant.now().getEpochSecond(), "" + Instant.now().getEpochSecond(), "0", "TRUE"};
-					String[] vColumnNames = {"USER_ID", "CALL_START", "CALL_END", "CALL_TIME", "IS_AFK"};
-					try {
-						SaveFile.putData(VoiceDataController.FILENAME, "s" + message.getServer().get().getId(), vColumns, vColumnNames);
-					} catch (ClassNotFoundException e) {
-						e.printStackTrace();
-					} catch (SQLException throwables) {
-						throwables.printStackTrace();
-					}
+					activeCalls.remove(call);
+					break;
 				}
-            	
-            	//Rates all messages
-                if (message.getContent().toString().startsWith("!rateall")){
-                	if (message.getCustomEmojis().size() == 0) {
-                		message.getChannel().sendMessage("No emojis were specified as search parameters");
-                		return;
-                	}
-                	CustomEmoji emoji = message.getCustomEmojis().get(0);
-                	message.getChannel().sendMessage("I am now searching for the message with the most " + emoji.getMentionTag() + ". This may take a while...");
-                	CompletableFuture<MessageSet> history = message.getChannel().getMessages(1000000);
-					String highestMessage = "";
-					String highestAuthor = "";
-					int highestCount = 0;
+			}
+		}
+		// User switched channels (leave + join)
+		else if (event.getChannelLeft() != null && event.getChannelJoined() != null) {
+			// End the previous call
+			for (LiveCall call : activeCalls) {
+				if (call.getUserID() == event.getMember().getIdLong() &&
+					call.getServerID() == event.getGuild().getIdLong() &&
+					call.getEndTime() == 0) {
+					call.setEndTime(Instant.now().getEpochSecond());
 					try {
-						MessageSet messageHistory = history.get();
-						Iterator<Message> messageIterator = messageHistory.iterator();
-						while (messageIterator.hasNext()) {
-							Message msg = messageIterator.next();
-							try{
-								for(Reaction r : msg.getReactions()){
-									if(r.getEmoji().equalsEmoji(emoji)){
-										System.err.println("EMOJI FOUND");
-										int count = msg.getReactions().get(msg.getReactions().indexOf(r)).getCount();
-										if(count > highestCount){
-											highestCount = count;
-											highestMessage = msg.getContent().toString();
-											highestAuthor = msg.getAuthor().getName();
-										}
-									}
-								}
-							}
-							catch(NullPointerException e){
-								System.err.println("NullPointerException. Continuing...");
-							}
-						}
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					} catch (ExecutionException e) {
-						e.printStackTrace();
-					}
-
-					if (highestCount > 0) {
-						message.getChannel().sendMessage("> " + highestMessage + "\n-" + highestAuthor + "\n" + highestCount + " " + emoji.getMentionTag() + "\n");
-					}
-					else {
-						message.getChannel().sendMessage("No " + emoji.getMentionTag() + " reactions were found within the last 1,000,000 messages.");
-					}
-                }
-                
-                //Send some slimy boys
-                else if(message.getContent().startsWith("!slimyboys")){
-                	message.getChannel().sendMessage("https://cdn.discordapp.com/attachments/167788706101460992/340737175303880714/slimyboys.jpg");
-                }
-                
-                //Rates the last 10000 messages
-                else if (message.getContent().toString().startsWith("!rate")){
-                	if (message.getCustomEmojis().size() == 0) {
-                		message.getChannel().sendMessage("No emojis were specified as search parameters");
-                		return;
-                	}
-                	CustomEmoji emoji = message.getCustomEmojis().get(0);
-                	message.getChannel().sendMessage("I am now searching for the message with the most " + emoji.getMentionTag() + ". This may take a while...");
-                	CompletableFuture<MessageSet> history = message.getChannel().getMessages(10000);
-					String highestMessage = "";
-					String highestAuthor = "";
-					int highestCount = 0;
-					try {
-						MessageSet messageHistory = history.get();
-						System.out.println("History: " + messageHistory.size());
-						Iterator<Message> messageIterator = messageHistory.iterator();
-						while (messageIterator.hasNext()) {
-							Message msg = messageIterator.next();
-							try{
-								for(Reaction r : msg.getReactions()){
-									if(r.getEmoji().equalsEmoji(emoji)){
-										System.err.println("EMOJI FOUND");
-										int count = msg.getReactions().get(msg.getReactions().indexOf(r)).getCount();
-										if(count > highestCount){
-											highestCount = count;
-											highestMessage = msg.getContent().toString();
-											highestAuthor = msg.getAuthor().getName();
-										}
-									}
-								}
-							}
-							catch(NullPointerException e){
-								System.err.println("NullPointerException. Continuing...");
-							}
-						}
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					} catch (ExecutionException e) {
-						e.printStackTrace();
-					}
-                	
-					if (highestCount > 0) {
-						message.getChannel().sendMessage("> " + highestMessage + "\n-" + highestAuthor + "\n" + highestCount + " " + emoji.getMentionTag() + "\n");
-					}
-					else {
-						message.getChannel().sendMessage("No " + emoji.getMentionTag() + " reactions were found within the last 10,000 messages. (Try using !rateall)");
-					}
-                }
-                
-                //Awards the specified user 1 point if the sender has enough remaining
-                //See ScoreController.awardPoint()
-                else if(message.getContent().toString().startsWith("!award")){
-                	List<User> mentions = message.getMentionedUsers();
-                	for(User user : mentions){
-                		try {
-                			if(!("" + message.getAuthor().getId()).equals("" + user.getId())){
-								message.getChannel().sendMessage(ScoreController.awardPoint("" + message.getAuthor().getId(), "" + user.getId(), "" + message.getServer().get().getId()));
-                			}
-                			else{
-                				message.getChannel().sendMessage("You can't award yourself a point!");
-                			}
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						} catch (SQLException e) {
-							e.printStackTrace();
-						}
-                	}
-                }
-                
-                //Returns the number of points the sender has earned, as well as those still available to send.
-                //See ScoreController.getCurrentUserScore()
-                else if(message.getContent().toString().startsWith("!mypoints")){
-                	try {
-						message.getChannel().sendMessage("<@" + "" + message.getAuthor().getId() + ">" + ", you have " + ScoreController.getCurrentUserScore("" + message.getAuthor().getId(), "" + message.getServer().get().getId()) + " points and " + ScoreController.getRemainingPoints("" + message.getAuthor().getId(), "" + message.getServer().get().getId()) + " points left to award to others.");
+						VoiceDataController.recordCall(call);
 					} catch (ClassNotFoundException | SQLException e) {
 						e.printStackTrace();
 					}
-                }
-                
-                //Displays the current ranking of all users in the server.
-                else if(message.getContent().toString().startsWith("!scoreboard")){
-                	List<List<String>> scores;
-					try {
-						scores = SaveFile.dropTableAsListMatrix(ScoreController.FILENAME, "s" + message.getServer().get().getId(), "POINTS", "USER_ID");
-						//Sorts each user in the order of their earned points. Stores an array of the indices.
-						int[] sortedIndices = IntStream.range(0, scores.get(0).size())
-				                .boxed().sorted(Comparator.comparingInt(i -> Integer.parseInt(scores.get(0).get(i))))
-				                .mapToInt(ele -> ele).toArray(); 
-						
-						String response = "";
-						int currentNum = 1;
-						Log.info("ScoresAfter: " + scores);
-						for(int i = scores.get(0).size() - 1; i >= 0; i--){
-							String memberID = scores.get(1).get(sortedIndices[i]);
-							Log.info("MemberID: " + memberID);
-							String username = "[Removed user]";
-							Optional<User> user = message.getServer().get().getMemberById(memberID);
-							username = user.isPresent() ? user.get().getName() : username;
-							response += "#" + currentNum + ": " + username + " (" + scores.get(0).get(sortedIndices[i]) + " points)\n";
-							currentNum++;
-						}
-						new MessageBuilder().setEmbed(new EmbedBuilder()
-								.setTitle("Scoreboard")
-								.setDescription(response)
-								.setColor(Color.GREEN)).send(message.getChannel());
-					} catch (ClassNotFoundException | SQLException e) {
-						e.printStackTrace();
-					}
-                	
-                }
-				//Displays the current ranking of all users in the server based on voice activity.
-				else if(message.getContent().toString().startsWith("!vscoreboard")){
-					ArrayList<ArrayList<Long>> callList;
-					HashMap<Long, Long> callTime = new HashMap<>();
-					String title = "Call Time Scoreboard";
-					try {
-						for (LiveCall call : VoiceDataController.getAllCalls(message.getServer().get().getId())) {
-							if (message.getContent().toString().startsWith("!vscoreboard afk") && call.isAfkChannel()) {
-								title = "AFK Time Scoreboard";
-								callTime.put(call.getUserID(), callTime.getOrDefault(call.getUserID(), 0l) + (call.getEndTime() - call.getStartTime()));
-							}
-							else if (!message.getContent().toString().startsWith("!vscoreboard afk") && !call.isAfkChannel()){
-								callTime.put(call.getUserID(), callTime.getOrDefault(call.getUserID(), 0l) + (call.getEndTime() - call.getStartTime()));
-							}
-							else if (message.getContent().toString().startsWith("!vscoreboard total")){
-								title = "Call Time Scoreboard (Active + AFK Channels)";
-								callTime.put(call.getUserID(), callTime.getOrDefault(call.getUserID(), 0l) + (call.getEndTime() - call.getStartTime()));
-							}
-						}
-						callList = new ArrayList<>();
-						callList.add(new ArrayList<>());
-						callList.add(new ArrayList<>());
-						for (Map.Entry<Long, Long> entry : callTime.entrySet()) {
-							callList.get(0).add(entry.getValue());
-							callList.get(1).add(entry.getKey());
-						}
-						//Sorts each user in the order of their call time in seconds. Stores an array of the indices.
-						long[] sortedIndices = LongStream.range(0, callList.get(0).size())
-								.boxed().sorted(Comparator.comparingLong(i -> callList.get(0).get(Math.toIntExact(i))))
-								.mapToLong(ele -> ele).toArray();
-
-						String response = "";
-						int currentNum = 1;
-						Log.info("ScoresAfter: " + callList);
-						for(int i = callList.get(0).size() - 1; i >= 0; i--){
-							String memberID = "" + callList.get(1).get(Math.toIntExact(sortedIndices[i]));
-							Log.info("MemberID: " + memberID);
-							String username = "[Removed user]";
-							Optional<User> user = message.getServer().get().getMemberById(memberID);
-							username = user.isPresent() ? user.get().getName() : username;
-							response += "#" + currentNum + ": " + username + " (" + VoiceDataController.toHMS(callList.get(0).get(Math.toIntExact(sortedIndices[i]))) + ")\n";
-							currentNum++;
-						}
-						new MessageBuilder().setEmbed(new EmbedBuilder()
-								.setTitle(title)
-								.setDescription(response)
-								.setColor(Color.GREEN)).send(message.getChannel());
-					} catch (ClassNotFoundException | SQLException e) {
-						e.printStackTrace();
-					}
-
+					activeCalls.remove(call);
+					break;
 				}
-                else if (message.getContent().startsWith("!mystats")) {
-                	String liveCall = "";
-					for (LiveCall call : activeCalls) {
-						if (call.getServerID() == message.getServer().get().getId() && call.getUserID() == message.getAuthor().getId()) {
-							long totalCallTime = Instant.now().getEpochSecond() - call.getStartTime();
-							liveCall = "Currently in a call for " + VoiceDataController.toHMS(totalCallTime);
-						}
-					}
-					if (liveCall.isEmpty()) {
-						try {
-							liveCall = "Not currently in a call. " + VoiceDataController.lastCallTime(message.getServer().get().getId(), message.getAuthor().getId(), false);
-						} catch (SQLException throwables) {
-							throwables.printStackTrace();
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						}
-					}
-					try {
-						new MessageBuilder().setEmbed(new EmbedBuilder()
-								.setTitle("User statistics for " + message.getAuthor().getDisplayName())
-								.setDescription(
-										"Score: " +
-												ScoreController.getCurrentUserScore("" + message.getUserAuthor().get().getId(), "" + message.getServer().get().getId()) + "\n" +
-										"Spendable Points: " +
-												ScoreController.getRemainingPoints("" + message.getUserAuthor().get().getId(), "" + message.getServer().get().getId()) + "\n" +
-										"Call time in the past 24 hours: " +
-												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
-										"Call time this month: " +
-												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
-										"Call time this year: " +
-												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
-										"Total call time: " +
-												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getUserAuthor().get().getId(), false) + "\n" +
-										"AFK time in the past 24 hours: " +
-												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
-										"AFK time this month: " +
-												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
-										"AFK time this year: " +
-												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
-										"Total AFK time: " +
-												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getUserAuthor().get().getId(), true) + "\n" +
-										liveCall)
-								.setColor(Color.GREEN)).send(message.getChannel());
-					} catch (SQLException throwables) {
-						throwables.printStackTrace();
-					} catch (ClassNotFoundException e) {
-						e.printStackTrace();
-					}
-				}
-
-				else if (message.getContent().startsWith("!stats")) {
-					if (message.getMentionedUsers().isEmpty()) {
-						new MessageBuilder().setContent("Please specify a user!").send(message.getChannel());
-					}
-					String liveCall = "";
-					for (LiveCall call : activeCalls) {
-						if (call.getServerID() == message.getServer().get().getId() && call.getUserID() == message.getMentionedUsers().get(0).getId()) {
-							long totalCallTime = Instant.now().getEpochSecond() - call.getStartTime();
-							liveCall = "Currently in a call for " + VoiceDataController.toHMS(totalCallTime);
-						}
-					}
-					if (liveCall.isEmpty()) {
-						try {
-							liveCall = "Not currently in a call. " + VoiceDataController.lastCallTime(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false);
-						} catch (SQLException throwables) {
-							throwables.printStackTrace();
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						}
-					}
-					try {
-						new MessageBuilder().setEmbed(new EmbedBuilder()
-								.setTitle("User statistics for " + message.getMentionedUsers().get(0).getDisplayName(message.getServer().get()))
-								.setDescription(
-										"Score: " +
-												ScoreController.getCurrentUserScore("" + message.getMentionedUsers().get(0).getId(), "" + message.getServer().get().getId()) + "\n" +
-												"Spendable Points: " +
-												ScoreController.getRemainingPoints("" + message.getMentionedUsers().get(0).getId(), "" + message.getServer().get().getId()) + "\n" +
-												"Call time in the past 24 hours: " +
-												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
-												"Call time this month: " +
-												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
-												"Call time this year: " +
-												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
-												"Total call time: " +
-												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), false) + "\n" +
-												"AFK time in the past 24 hours: " +
-												VoiceDataController.callTimePastDay(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
-												"AFK time this month: " +
-												VoiceDataController.callTimeThisMonth(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
-												"AFK time this year: " +
-												VoiceDataController.callTimeThisYear(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
-												"Total AFK time: " +
-												VoiceDataController.callTimeTotal(message.getServer().get().getId(), message.getMentionedUsers().get(0).getId(), true) + "\n" +
-												liveCall)
-								.setColor(Color.GREEN)).send(message.getChannel());
-					} catch (SQLException throwables) {
-						throwables.printStackTrace();
-					} catch (ClassNotFoundException e) {
-						e.printStackTrace();
-					}
-				}
-
-                //Sends a TTS message (or multiple successive TTS messages) with the specified content
-                else if(message.getContent().startsWith("!tts")){
-                	String msg = message.getContent().replace("!tts ", "");
-                	String[] broken = msg.split("\\.", -1);
-                	for(String str : broken){
-                		try {
-							Thread.sleep(1000);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
-                		//For some reason, replies can't be TTS messages in this version of Javacord. I don't know why.
-                		message.getChannel().sendMessage(str, null, true, null);                	}
-                }
-                
-                //Displays the help message
-                else if(message.getContent().toString().startsWith("!help")){
-                	new MessageBuilder().setEmbed(new EmbedBuilder()
-                			.setTitle("ScoreBert Help")
-                			.setDescription("!award @user: Gives the mentioned user 1 point\n!mypoints: Shows your points and remaining spendable points\n!rate [emoji]: Finds the message with the most of the specified emoji reactions within the last 10,000 messages (Only works with custom emojis)\n!rateall [emoji]: Same as above, but rates every message in the chat (takes significantly longer)\n!scoreboard: Shows the complete scoreboard for user-awarded points\n!vscoreboard [afk|total]: Ranks users based on tracked voice channel time\n!mystats: Shows your statistic breakdown\n!stats @user: Shows the specified user's statistic breakdown\n!slimyboys: yum!\n!tts [message]: Reads your message through the TTS engine. Same as /tts, but can be used for messages that are too long for the Discord command.")
-							.setColor(Color.GREEN))
-                	.send(message.getChannel());
-                }
-    		});
-    		api.addServerVoiceChannelMemberJoinListener(event -> {
-    			activeCalls.add(new LiveCall(event.getServer().getId(), event.getUser().getId(), Instant.now().getEpochSecond(), event.getServer().getAfkChannel().isPresent() && event.getServer().getAfkChannel().get().equals(event.getChannel())));
-			});
-    		api.addServerVoiceChannelMemberLeaveListener(event -> {
-    			LiveCall thisCall = null;
-				long endTime = Instant.now().getEpochSecond();
-    			for (LiveCall call : activeCalls) {
-    				if (call.getServerID() == event.getServer().getId() && call.getUserID() == event.getUser().getId()) {
-    					thisCall = call;
-    					activeCalls.remove(thisCall);
-    					break;
-					}
-				}
-
-    			if (thisCall != null) {
-    				long timeInCall = endTime - thisCall.getStartTime();
-    				Log.info(event.getUser().getName() + " completed a call - time: " + timeInCall + (thisCall.isAfkChannel() ? " (AFK)" : ""));
-    				thisCall.setEndTime(endTime);
-    				//TODO Save call time / log data to database.
-					try {
-						VoiceDataController.recordCall(thisCall);
-					} catch (SQLException throwables) {
-						throwables.printStackTrace();
-					} catch (ClassNotFoundException e) {
-						e.printStackTrace();
-					}
-				}
-			});
-    	});
-    }
-
+			}
+			// Start a new call in the joined channel
+			boolean isAfk = event.getChannelJoined().getName().toLowerCase().equals("afk");
+			LiveCall call = new LiveCall(
+				event.getGuild().getIdLong(),
+				event.getMember().getIdLong(),
+				Instant.now().getEpochSecond(),
+				isAfk
+			);
+			activeCalls.add(call);
+		}
+	}
 }
