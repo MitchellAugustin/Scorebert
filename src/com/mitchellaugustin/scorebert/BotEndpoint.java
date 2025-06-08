@@ -234,6 +234,10 @@ public class BotEndpoint extends ListenerAdapter {
 	private void handleVScoreboard(Message message) {
 		String[] args = message.getContentRaw().split(" ");
 		boolean afk = args.length > 1 && args[1].equalsIgnoreCase("afk");
+		// Default to non-AFK if no parameters are provided
+		if (args.length <= 1) {
+			afk = false;
+		}
 		
 		try {
 			List<LiveCall> calls = VoiceDataController.getAllCalls(message.getGuild().getIdLong());
@@ -269,7 +273,7 @@ public class BotEndpoint extends ListenerAdapter {
 			
 			message.getChannel().sendMessageEmbeds(
 				new net.dv8tion.jda.api.EmbedBuilder()
-					.setTitle("Voice Scoreboard (" + (afk ? "AFK" : "TOTAL") + ")")
+					.setTitle("Voice Scoreboard (" + (afk ? "AFK" : "NON-AFK") + ")")
 					.setDescription(response.toString())
 					.setColor(Color.BLUE)
 					.build()
@@ -319,7 +323,7 @@ public class BotEndpoint extends ListenerAdapter {
 			+ "`!mypoints` - Shows your points and remaining spendable points\n"
 			+ "`!rate [emoji]` - Finds the message with the most of the specified emoji reactions within the last 100 messages (Only works with custom emojis)\n"
 			+ "`!scoreboard` - Shows the complete scoreboard for user-awarded points\n"
-			+ "`!vscoreboard [afk|total]` - Ranks users based on tracked voice channel time\n"
+			+ "`!vscoreboard [afk]` - Ranks users based on tracked voice channel time\n"
 			+ "`!mystats` - Shows your statistic breakdown\n"
 			+ "`!stats @user` - Shows the specified user's statistic breakdown\n"
 			+ "`!slimyboys` - yum!";
