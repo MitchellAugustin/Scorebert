@@ -1,2 +1,6 @@
 *.db
-.target
+target
+.settings
+bin
+.project
+.classpath
