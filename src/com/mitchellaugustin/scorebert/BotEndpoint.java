@@ -334,7 +334,7 @@ public class BotEndpoint extends ListenerAdapter {
 	public void onGuildVoiceUpdate(GuildVoiceUpdateEvent event) {
 		// User joined a voice channel
 		if (event.getChannelJoined() != null && event.getChannelLeft() == null) {
-			boolean isAfk = event.getChannelJoined().getName().toLowerCase().equals("afk");
+			boolean isAfk = event.getChannelJoined().getName().toLowerCase().contains("afk");
 			LiveCall call = new LiveCall(
 				event.getGuild().getIdLong(),
 				event.getMember().getIdLong(),
@@ -378,7 +378,7 @@ public class BotEndpoint extends ListenerAdapter {
 				}
 			}
 			// Start a new call in the joined channel
-			boolean isAfk = event.getChannelJoined().getName().toLowerCase().equals("afk");
+			boolean isAfk = event.getChannelJoined().getName().toLowerCase().contains("afk");
 			LiveCall call = new LiveCall(
 				event.getGuild().getIdLong(),
 				event.getMember().getIdLong(),
